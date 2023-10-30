@@ -1,6 +1,7 @@
 const express = require("express");
 const app = express();
 const multer = require('multer');
+const jwt = require('jsonwebtoken');
 const path = require('path')
 const fs = require('fs');
 
@@ -20,22 +21,27 @@ const fileUpload = multer({
     storage: diskStorage,
 }).single('image');
 const getPub = async (request, response) => {
-    connection.query("SELECT * FROM publicaciones",
+    connection.query("SELECT user, publicacion, text_pub FROM publicaciones pb INNER JOIN usuarios_pub up ON pb.id_publicaciones = up.id_pub INNER JOIN usuarios u ON u.id_usuarios = up.id_usuarios;",
         (error, results) => {
+            console.log(results)
             if(error)
                 throw error;
-            results.map(img => {
-                fs.writeFileSync(path.join(__dirname, '../dbimages/' + img.id_publicaciones + '.png'), img.publicacion)
+            results?.map(img => {
+                console.log(img)
+                fs.writeFileSync(path.join(__dirname, '../dbimages/' + img.text_pub + '.png'), img.publicacion)
             })
-            results.map(text => {
+            results?.map(text => {
                 fs.writeFileSync(path.join(__dirname, '../dbtext/' + text.text_pub), text.text_pub)
+            })
+            let users = [];
+            results?.map((user, index) => {
+                users[index] = user.user;
             })
             const imagedir = fs.readdirSync(path.join(__dirname, '../dbimages/'));
             const textdir = fs.readdirSync(path.join(__dirname, '../dbtext'));
+            response.json({imagedir, textdir, user: users});
 
-            response.json({imagedir, textdir});
 
-            console.log(results);
         });
 };
 
@@ -44,9 +50,10 @@ app.route("/pub")
     .get(getPub);
 
 const postPub = async (request, response) => {
-    console.log("xd")
+    const {aToken} = request.cookies;
+    const dataUser = jwt.verify(aToken, process.env.SECRET);
+    console.log(dataUser);
     const texto = request.body.text;
-    console.log("xd")
     const data = fs.readFileSync(path.join(__dirname, '../images/' + request.file.filename))
     connection.query("INSERT INTO publicaciones(publicacion, text_pub) VALUES (?,?) ",
         [ data, texto],
@@ -55,6 +62,22 @@ const postPub = async (request, response) => {
                 throw error;
             response.status(201).json({"Item añadido correctamente": results.affectedRows});
         });
+
+    connection.query("SELECT id_publicaciones FROM publicaciones ORDER BY id_publicaciones DESC LIMIT 1",
+        async (err, res) => {
+        if(err)
+            throw err;
+        console.log(res[0].id_publicaciones)
+            connection.query("INSERT INTO usuarios_pub(id_usuarios, id_pub) VALUES (?,?) ",
+                [ dataUser.id, res[0].id_publicaciones],
+                (error, results) => {
+                    if(error)
+                        throw error;
+                });
+    });
+
+
+
 };
 
 app.route("/pub")
