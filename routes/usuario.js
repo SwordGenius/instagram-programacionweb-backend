@@ -14,6 +14,7 @@ const getUsuarios = async (request, response) => {
             if(error)
                 throw error;
             response.status(200).json(results);
+            console.log(response)
         });
 };
 
@@ -22,9 +23,9 @@ app.route("/usuarios")
     .get(getUsuarios);
 
 const postUsuario = async (request, response) => {
-    const {email, password} = request.body;
-    connection.query("INSERT INTO usuarios( email, password) VALUES (?,?) ",
-        [ email, password],
+    const {email, password, user} = request.body;
+    connection.query("INSERT INTO usuarios( email, password, user) VALUES (?,?,?) ",
+        [ email, password, user],
         (error, results) => {
             if(error)
                 throw error;
@@ -66,7 +67,7 @@ const patchUsuario = async (request, response) => {
 app.route("/usuarios/:id").patch(patchUsuario);
 const getByUsuario = async (request, response) => {
     const id = request.params.id;
-    connection.query("SELECT email, password FROM usuarios WHERE email = ?",
+    connection.query("SELECT * FROM usuarios WHERE email = ?",
         [id],
         (error, results) => {
             if(error)

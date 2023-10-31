@@ -15,8 +15,9 @@ const loginAuth = async (req, res) => {
             if (data[0].email === req.body.email && data[0].password === req.body.password){
                 const token = jwt.sign({
                     exp: Math.floor(Date.now() / 1000) + (60 * 60),
-                    email: data[0].email,
-                    password: data[0].password,
+                    email: req.body.email,
+                    user: data[0].user,
+                    id: data[0].id_usuarios,
                 }, process.env.SECRET)
                 const serialized = serialize('aToken', token, {
                     httpOnly: true,

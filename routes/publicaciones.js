@@ -1,6 +1,7 @@
 const express = require("express");
 const app = express();
 const multer = require('multer');
+const jwt = require('jsonwebtoken');
 const path = require('path')
 const fs = require('fs');
 
@@ -20,22 +21,37 @@ const fileUpload = multer({
     storage: diskStorage,
 }).single('image');
 const getPub = async (request, response) => {
-    connection.query("SELECT * FROM publicaciones",
+    connection.query("SELECT user, publicacion, text_pub, fecha_pub, hora_pub FROM publicaciones pb INNER JOIN usuarios_pub up ON pb.id_publicaciones = up.id_pub INNER JOIN usuarios u ON u.id_usuarios = up.id_usuarios;",
         (error, results) => {
+            console.log(results)
             if(error)
                 throw error;
-            results.map(img => {
-                fs.writeFileSync(path.join(__dirname, '../dbimages/' + img.id_publicaciones + '.png'), img.publicacion)
+            results?.map(img => {
+                console.log(img)
+                fs.writeFileSync(path.join(__dirname, '../dbimages/' + img.text_pub + '.png'), img.publicacion)
             })
-            results.map(text => {
+            results?.map(text => {
                 fs.writeFileSync(path.join(__dirname, '../dbtext/' + text.text_pub), text.text_pub)
+            })
+            let users = [];
+            results?.map((user, index) => {
+                users[index] = user.user;
+            })
+            let fechas = [];
+            results?.map((fecha, index) => {
+                let fechaTotal = fecha.fecha_pub.getDate()+'/'+(fecha.fecha_pub.getMonth()+1)+'/'+fecha.fecha_pub.getFullYear();
+                console.log(fechaTotal);
+                fechas[index] = fechaTotal;
+            })
+            let horas = [];
+            results?.map((hora, index) => {
+                horas[index] = hora.hora_pub;
             })
             const imagedir = fs.readdirSync(path.join(__dirname, '../dbimages/'));
             const textdir = fs.readdirSync(path.join(__dirname, '../dbtext'));
+            response.json({imagedir, textdir, user: users, fechas, horas});
 
-            response.json({imagedir, textdir});
 
-            console.log(results);
         });
 };
 
@@ -44,17 +60,38 @@ app.route("/pub")
     .get(getPub);
 
 const postPub = async (request, response) => {
-    console.log("xd")
+    const {aToken} = request.cookies;
+    const dataUser = jwt.verify(aToken, process.env.SECRET);
+    console.log(dataUser);
+    let fecha = new Date()
+    const fecha_pub = fecha.getFullYear()+'-'+(fecha.getMonth()+1)+'-'+fecha.getDate();
+    console.log(fecha_pub);
+    const hora_pub = fecha.getHours()+':'+fecha.getMinutes()+':'+fecha.getSeconds();
     const texto = request.body.text;
-    console.log("xd")
     const data = fs.readFileSync(path.join(__dirname, '../images/' + request.file.filename))
-    connection.query("INSERT INTO publicaciones(publicacion, text_pub) VALUES (?,?) ",
-        [ data, texto],
+    connection.query("INSERT INTO publicaciones(publicacion, text_pub, fecha_pub, hora_pub) VALUES (?,?,?,?) ",
+        [ data, texto, fecha_pub, hora_pub],
         (error, results) => {
             if(error)
                 throw error;
-            response.status(201).json({"Item añadido correctamente": results.affectedRows});
+            response.status(201).json({"Item añadido correctamente": results});
         });
+
+    connection.query("SELECT id_publicaciones FROM publicaciones ORDER BY id_publicaciones DESC LIMIT 1",
+        async (err, res) => {
+        if(err)
+            throw err;
+        console.log(res[0].id_publicaciones)
+            connection.query("INSERT INTO usuarios_pub(id_usuarios, id_pub) VALUES (?,?) ",
+                [ dataUser.id, res[0].id_publicaciones],
+                (error, results) => {
+                    if(error)
+                        throw error;
+                });
+    });
+
+
+
 };
 
 app.route("/pub")
